@@ -166,18 +166,6 @@ footer b{color:var(--txt);font-weight:600}
 </header>
 
 <div class="wrap">
-  <div class="controls">
-    <span class="ctl-label">回看 N 日</span>
-    <div class="seg" id="winseg"></div>
-    <span class="ctl-label">顯示</span>
-    <div class="seg alt" id="viewseg">
-      <button data-v="30" class="on">Top 30</button>
-      <button data-v="all">全部</button>
-    </div>
-    <input class="search" id="search" placeholder="篩選代號 / 公司…" autocomplete="off">
-    <div class="count" id="count"></div>
-  </div>
-
   <section class="charts">
     <div class="charthead">
       <div class="ct">EV Top-3 即時K線 <span class="sub">/ Top-3 by Expectancy</span> · 回看 N=<b id="cwin">90</b> 日（隨上方窗口連動）</div>
@@ -206,6 +194,18 @@ footer b{color:var(--txt);font-weight:600}
     <div id="libwarn" class="libwarn" style="display:none">⚠️ 圖表函式庫載入失敗（離線環境）——連網後重新開啟即可顯示 K 線。</div>
     <div class="cnote">K 線資料：Yahoo Finance 還原（adjusted）日線，與上表同源，快照 as-of <b id="casof"></b>，非逐筆即時報價；要更新請重跑。剛分拆個股（如 <b>SNDK</b>）還原後價格軸偏高為低基期假象。<b>Heikin-Ashi</b> 為平滑型態（HA<sub>close</sub>=(O+H+L+C)/4、HA<sub>open</sub>=前一根HA中點），非真實成交價，僅供判讀趨勢延續。SMA100/200 一律以<b>實際收盤</b>計算。</div>
   </section>
+
+  <div class="controls">
+    <span class="ctl-label">回看 N 日</span>
+    <div class="seg" id="winseg"></div>
+    <span class="ctl-label">顯示</span>
+    <div class="seg alt" id="viewseg">
+      <button data-v="30" class="on">Top 30</button>
+      <button data-v="all">全部</button>
+    </div>
+    <input class="search" id="search" placeholder="篩選代號 / 公司…" autocomplete="off">
+    <div class="count" id="count"></div>
+  </div>
 
   <div class="tablewrap">
     <table id="tbl">
