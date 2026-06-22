@@ -161,7 +161,7 @@ footer b{color:var(--txt);font-weight:600}
       <span class="tag">CLOSE-TO-CLOSE · GAP-INCLUSIVE</span>
       <span class="tag" style="border-color:rgba(39,209,124,.45);color:var(--pos)">● LIVE 自動更新</span>
     </div>
-    <div class="meta">最近更新 <b id="asof"></b> · 宇集 <b id="uni"></b> 檔 NDX-100 成分股 · 依<b>期望值 (EV)</b> 由高至低排序 · 點欄位標題可重新排序 · 資料源 Yahoo Finance（分割/股息還原）· <span id="livestat" class="livestat load">啟動中…</span> <button id="refreshbtn" class="refreshbtn">↻ 立即更新</button> · 盤中每 ~15 分鐘自動更新</div>
+    <div class="meta">最近更新 <b id="asof"></b> · 宇集 <b id="uni"></b> 檔 NDX-100 成分股 · 依<b>期望值 (EV)</b> 由高至低排序 · 點欄位標題可重新排序 · 資料源 Yahoo Finance（分割/股息還原）· <span id="livestat" class="livestat load">啟動中…</span> <span id="srcbadge" class="livestat" style="display:none"></span> <button id="refreshbtn" class="refreshbtn">↻ 立即更新</button> · 盤中每 ~15 分鐘自動更新</div>
   </div>
 </header>
 
@@ -476,6 +476,17 @@ function applyData(d){
   var a=document.getElementById('asof'); if(a) a.textContent=DATA.as_of;
   var u=document.getElementById('uni'); if(u) u.textContent=DATA.windows['90'].length;
   var ca=document.getElementById('casof'); if(ca) ca.textContent=DATA.as_of;
+  renderSourceBadge();
+}
+function renderSourceBadge(){
+  var el=document.getElementById('srcbadge'); if(!el) return;
+  var s=DATA&&DATA.source;
+  if(!s||!s.mode){ el.style.display='none'; return; }  // back-compat: old JSON has no source
+  var live=s.mode==='live';
+  el.className='livestat '+(live?'ok':'err');
+  el.textContent='成分股 '+(live?'🟢 live':'🔴 fallback（內建備援）')+' · '+s.count+' 檔 · '+s.fetched_at;
+  el.title=live?'成分股清單即時抓自 Wikipedia':'即時抓取失敗，使用內建備援清單（可能已過時）';
+  el.style.display='';
 }
 function setStat(s,msg){ var e=document.getElementById('livestat'); if(!e) return; e.textContent=msg; e.className='livestat '+s; }
 async function pull(first){

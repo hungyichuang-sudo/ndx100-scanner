@@ -14,7 +14,7 @@ Public API:
     build_payload(data, scan)      -> {'as_of', 'windows', 'ohlc'}  (served at /api/scanner)
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
@@ -289,11 +289,14 @@ def main():
         names, tickers = fetch_constituents()
         NAMES = names
         UNIVERSE = tickers
+        source_mode = 'live'
         print('fetched %d NDX-100 constituents from Wikipedia' % len(tickers))
     except Exception as e:
         print('WARN: constituent fetch failed, using built-in fallback list (%s)' % e)
         NAMES = dict(FALLBACK_NAMES)
         UNIVERSE = list(FALLBACK_NAMES.keys())
+        source_mode = 'fallback'
+    fetched_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
     uni = UNIVERSE
     lim = os.environ.get('UNIVERSE_LIMIT')
@@ -307,6 +310,9 @@ def main():
 
     scan = compute_scan(data)
     payload = build_payload(data, scan)
+    # Surface the constituent-source status (live vs built-in fallback) so the
+    # page can flag silent fallbacks. Additive only — as_of/windows/ohlc unchanged.
+    payload['source'] = {'mode': source_mode, 'count': len(UNIVERSE), 'fetched_at': fetched_at}
 
     here = os.path.dirname(os.path.abspath(__file__))
     out = os.path.join(here, 'docs', 'scanner.json')
