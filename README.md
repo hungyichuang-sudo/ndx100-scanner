@@ -1,1 +1,1 @@
-# ndx100-scanner1
+# ndx100-scanner
