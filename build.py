@@ -6,6 +6,7 @@ browser CORS block on Yahoo). No API keys anywhere in this deployment.
 
 Public API:
     UNIVERSE                       -> list of NDX-100 tickers (constituent set)
+    fetch_constituents()           -> ({ticker: company}, [ticker]) live from Wikipedia
     default_start()                -> 'YYYY-MM-DD' lookback start (~2y)
     fetch_ohlc(tickers, start)     -> {ticker: DataFrame[Open,High,Low,Close]}
     compute_scan(data)             -> {'as_of', 'windows': {N: [rows...]}}
@@ -18,10 +19,11 @@ import numpy as np
 import pandas as pd
 
 # ----------------------------------------------------------------------------
-# Universe (NDX-100 constituent set, with display names). Same set the scanner
-# has been built on. GOOGL/GOOG dual-class both included.
+# Built-in fallback universe (NDX-100 constituent set, with display names).
+# This is the offline FALLBACK list, used verbatim only when the live Wikipedia
+# fetch in fetch_constituents() fails. GOOGL/GOOG dual-class both included.
 # ----------------------------------------------------------------------------
-NAMES = {
+FALLBACK_NAMES = {
 'ADBE':'Adobe','AMD':'AMD','ABNB':'Airbnb','ALNY':'Alnylam','GOOGL':'Alphabet A','GOOG':'Alphabet C',
 'AMZN':'Amazon','AEP':'American Electric Power','AMGN':'Amgen','ADI':'Analog Devices','AAPL':'Apple',
 'AMAT':'Applied Materials','APP':'AppLovin','ARM':'Arm Holdings','ASML':'ASML','ADSK':'Autodesk','ADP':'ADP',
@@ -39,6 +41,11 @@ NAMES = {
 'TMUS':'T-Mobile','TTWO':'Take-Two','TSLA':'Tesla','TXN':'Texas Instruments','TRI':'Thomson Reuters','VRSK':'Verisk',
 'VRTX':'Vertex','WMT':'Walmart','WBD':'Warner Bros Discovery','WDC':'Western Digital','WDAY':'Workday','XEL':'Xcel Energy','ZS':'Zscaler'
 }
+
+# Active constituent maps. At import these mirror the built-in fallback so the
+# module stays usable standalone; main() refreshes them from Wikipedia at build
+# time (with fallback to FALLBACK_NAMES on any error).
+NAMES = dict(FALLBACK_NAMES)
 UNIVERSE = list(NAMES.keys())
 
 WINDOWS = [30, 60, 90, 120, 150, 180]
@@ -50,6 +57,57 @@ BENCH = 'QQQ'             # benchmark chart
 def default_start():
     """~2 years of history: enough for the 180d window + SMA200 + warmup."""
     return (datetime.utcnow() - timedelta(days=760)).strftime('%Y-%m-%d')
+
+
+# ----------------------------------------------------------------------------
+# Live constituents (Wikipedia, keyless). Scraped fresh at build time so the
+# scanner follows index reconstitutions automatically. Returns
+# ({ticker: company}, [ticker, ...]); raises on any network/parse/empty error
+# so main() can fall back to the built-in FALLBACK_NAMES list.
+# ----------------------------------------------------------------------------
+WIKI_NDX_URL = 'https://en.wikipedia.org/wiki/Nasdaq-100'
+
+
+def fetch_constituents(url=None):
+    """Scrape the *current* Nasdaq-100 components table from Wikipedia.
+
+    The right table is identified by its column names (Ticker/Symbol + Company),
+    not a hard-coded index, since the page carries several tables. Tickers are
+    whitespace-cleaned; dot-form symbols (e.g. BRK.B) are kept verbatim.
+    """
+    import requests
+    from io import StringIO
+    url = url or os.environ.get('NDX_CONSTITUENTS_URL') or WIKI_NDX_URL
+    resp = requests.get(url, headers={'User-Agent':
+        'Mozilla/5.0 (compatible; ndx100-scanner/1.0; '
+        '+https://github.com/hungyichuang-sudo/ndx100-scanner)'}, timeout=30)
+    resp.raise_for_status()
+    tables = pd.read_html(StringIO(resp.text))
+
+    def norm(c):
+        return str(c).strip().lower()
+
+    chosen = tcol = ccol = None
+    for t in tables:
+        cols = {norm(c): c for c in t.columns}
+        tk = next((cols[k] for k in ('ticker', 'symbol') if k in cols), None)
+        co = next((cols[k] for k in ('company', 'company name') if k in cols), None)
+        if tk is not None and co is not None:
+            chosen, tcol, ccol = t, tk, co
+            break
+    if chosen is None:
+        raise ValueError('no Nasdaq-100 components table with Ticker+Company columns found')
+
+    names = {}
+    for _, row in chosen.iterrows():
+        tk = str(row[tcol]).replace('\xa0', ' ').strip()
+        co = str(row[ccol]).replace('\xa0', ' ').strip()
+        if not tk or tk.lower() == 'nan':
+            continue
+        names.setdefault(tk, co or tk)
+    if not names:
+        raise ValueError('Nasdaq-100 components table parsed but yielded 0 tickers')
+    return names, list(names.keys())
 
 
 # ----------------------------------------------------------------------------
@@ -223,6 +281,20 @@ def build_payload(data, scan):
 import json
 
 def main():
+    global NAMES, UNIVERSE
+    # Refresh the constituent universe from Wikipedia at build time so the
+    # scanner tracks index reconstitutions. Any failure falls back to the
+    # built-in list, keeping the build (and the live site) healthy.
+    try:
+        names, tickers = fetch_constituents()
+        NAMES = names
+        UNIVERSE = tickers
+        print('fetched %d NDX-100 constituents from Wikipedia' % len(tickers))
+    except Exception as e:
+        print('WARN: constituent fetch failed, using built-in fallback list (%s)' % e)
+        NAMES = dict(FALLBACK_NAMES)
+        UNIVERSE = list(FALLBACK_NAMES.keys())
+
     uni = UNIVERSE
     lim = os.environ.get('UNIVERSE_LIMIT')
     if lim:
